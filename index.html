@@ -2,242 +2,185 @@
 <html lang="pt">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Colorir por Números</title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Colorir por Números - Interiores</title>
   <style>
     :root {
-      --bg-light: #f5f5f5;
-      --bg-dark:  #222;
-      --text-light: #333;
-      --text-dark:  #eee;
+      --bg-color: #fdfcf9;
+      --text-color: #333;
+      --accent-color: #f9a825;
+      --header-bg: #fff;
+      --dark-bg: #121212;
+      --dark-text: #eee;
     }
-    html, body {
+
+    body {
       margin: 0;
-      padding: 0;
-      font-family: sans-serif;
-      background: var(--bg-light);
-      color: var(--text-light);
+      font-family: 'Segoe UI', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
-    body.dark {
-      background: var(--bg-dark);
-      color: var(--text-dark);
-    }
+
     header {
       display: flex;
-      align-items: center;
       justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      background-color: var(--header-bg);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       padding: 1rem;
     }
-    #gallery, #editor {
-      padding: 1rem;
-    }
-    #thumbs {
+
+    #gallery {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(100px,1fr));
-      gap: 0.5rem;
-    }
-    .thumbnail {
-      cursor: pointer;
-      border: 1px solid #ccc;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 1rem;
       width: 100%;
-      height: auto;
+      max-width: 1000px;
     }
+
+    .preview {
+      width: 100%;
+      cursor: pointer;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      transition: transform 0.2s;
+    }
+
+    .preview:hover {
+      transform: scale(1.05);
+    }
+
+    #canvasArea {
+      width: 100%;
+      max-width: 1000px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #canvasContainer {
+      width: 100%;
+      height: 80vh;
+      overflow: scroll;
+      border: 1px solid #ccc;
+      background: #fff;
+      margin-top: 1rem;
+      touch-action: none;
+    }
+
+    #svgCanvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    #tools {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
     .hidden {
       display: none;
     }
-    #canvas-container {
-      width: 100%;
-      height: 80vh;
-      border: 1px solid #888;
-      touch-action: none;
-      overflow: hidden;
-      position: relative;
+
+    .dark {
+      background-color: var(--dark-bg);
+      color: var(--dark-text);
     }
-    #toolbar {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 0.5rem;
-      align-items: center;
-    }
-    #toolbar input[type="color"] {
-      width: 32px;
-      height: 32px;
-      border: none;
-      padding: 0;
-      background: none;
-      cursor: pointer;
-    }
-    #toolbar button {
-      padding: 0.5rem 1rem;
-      cursor: pointer;
+
+    .dark header {
+      background-color: #1e1e1e;
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>Colorir por Números</h1>
-    <button id="toggle-dark">🌓</button>
+    <h1>Colorir Interiores</h1>
+    <button id="toggleMode">Modo Livre</button>
+    <button id="toggleDark">🌙</button>
   </header>
-
-  <section id="gallery">
-    <h2>Galeria</h2>
-    <div id="thumbs"></div>
-  </section>
-
-  <section id="editor" class="hidden">
-    <div id="toolbar">
-      <button id="btn-back">← Voltar</button>
-      <input type="color" id="free-color" title="Cor Livre" />
-      <button id="export-btn">Exportar</button>
-      <button id="share-btn">
-        <img src="assets/icons/share.svg" alt="Compartilhar" width="24" height="24" />
-      </button>
-    </div>
-    <div id="canvas-container"></div>
-  </section>
-
+  <main>
+    <section id="gallery"></section>
+    <section id="canvasArea" class="hidden">
+      <div id="tools">
+        <input type="color" id="colorPicker" class="hidden" />
+        <button id="backToGallery">Voltar</button>
+      </div>
+      <div id="canvasContainer">
+        <svg id="svgCanvas"></svg>
+      </div>
+    </section>
+  </main>
+  <audio id="paintSound" src="sounds/paint.mp3"></audio>
   <script>
-    // ==== Módulo Zoom & Pan ====
-    function initZoomPan(container) {
-      let scale = 1, origin = { x: 0, y: 0 };
-      let start = null;
-
-      container.addEventListener('wheel', e => {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        scale *= delta;
-        applyTransform();
-      });
-
-      container.addEventListener('pointerdown', e => {
-        if (e.pointerType === 'pen' || e.pointerType === 'touch') {
-          container.setPointerCapture(e.pointerId);
-          start = { x: e.clientX, y: e.clientY };
-        }
-      });
-
-      container.addEventListener('pointermove', e => {
-        if (!start) return;
-        origin.x += e.clientX - start.x;
-        origin.y += e.clientY - start.y;
-        start = { x: e.clientX, y: e.clientY };
-        applyTransform();
-      });
-
-      container.addEventListener('pointerup', () => { start = null; });
-
-      function applyTransform() {
-        const svg = container.querySelector('svg');
-        if (!svg) return;
-        svg.style.transform = 
-          `translate(${origin.x}px, ${origin.y}px) scale(${scale})`;
-        svg.style.transformOrigin = '0 0';
+    const svgImages = [
+      {
+        id: "living-room-modern",
+        title: "Sala Moderna",
+        preview: "https://via.placeholder.com/150?text=Sala+Moderna",
+        svg: `
+          <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 400'>
+            <rect x='0' y='0' width='600' height='400' fill='#ffffff' />
+            <rect data-number='1' x='50' y='250' width='200' height='100' fill='#ccc' stroke='#000' />
+            <circle data-number='2' cx='150' cy='200' r='40' fill='#eee' stroke='#000' />
+            <rect data-number='3' x='300' y='150' width='50' height='200' fill='#ddd' stroke='#000' />
+            <text x='10' y='20' font-size='12'>Sala Moderna</text>
+          </svg>`
+      },
+      {
+        id: "boho-bedroom",
+        title: "Quarto Boho",
+        preview: "https://via.placeholder.com/150?text=Quarto+Boho",
+        svg: `
+          <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 400'>
+            <rect x='0' y='0' width='600' height='400' fill='#ffffff' />
+            <rect data-number='1' x='100' y='200' width='300' height='100' fill='#fafafa' stroke='#000' />
+            <circle data-number='2' cx='250' cy='250' r='20' fill='#e0e0e0' stroke='#000' />
+            <rect data-number='3' x='450' y='180' width='40' height='80' fill='#dddddd' stroke='#000' />
+            <text x='10' y='20' font-size='12'>Quarto Boho</text>
+          </svg>`
       }
-    }
+    ];
 
-    // ==== Aplicação Principal ====
-    async function initGallery() {
-      const resp = await fetch('images/manifest.json');
-      const images = await resp.json();
-      const thumbs = document.getElementById('thumbs');
+    const gallery = document.getElementById("gallery");
+    const canvasArea = document.getElementById("canvasArea");
+    const svgCanvas = document.getElementById("svgCanvas");
+    const backToGallery = document.getElementById("backToGallery");
+    const toggleMode = document.getElementById("toggleMode");
+    const toggleDark = document.getElementById("toggleDark");
 
-      images.forEach(img => {
-        const el = document.createElement('img');
-        el.src = `images/${img.file}`;
-        el.alt = img.title;
-        el.classList.add('thumbnail');
-        el.dataset.id = img.id;
-        el.addEventListener('click', () => openEditor(img));
-        thumbs.appendChild(el);
+    svgImages.forEach((img) => {
+      const imgEl = document.createElement("img");
+      imgEl.src = img.preview;
+      imgEl.alt = img.title;
+      imgEl.classList.add("preview");
+      imgEl.addEventListener("click", () => {
+        svgCanvas.innerHTML = img.svg;
+        gallery.classList.add("hidden");
+        canvasArea.classList.remove("hidden");
       });
-    }
+      gallery.appendChild(imgEl);
+    });
 
-    async function openEditor({ id, file }) {
-      document.getElementById('gallery').classList.add('hidden');
-      const container = document.getElementById('canvas-container');
-      container.innerHTML = await fetch(`images/${file}`)
-        .then(r => r.text());
+    backToGallery.addEventListener("click", () => {
+      canvasArea.classList.add("hidden");
+      gallery.classList.remove("hidden");
+    });
 
-      setupPainting(id);
-      document.getElementById('editor').classList.remove('hidden');
-    }
-
-    function setupPainting(sceneId) {
-      const svg = document.querySelector('#canvas-container svg');
-      const audio = new Audio('assets/paint-sound.mp3');
-      const freeColorInput = document.getElementById('free-color');
-
-      // Restaura progresso
-      const saved = JSON.parse(localStorage.getItem(sceneId) || '{}');
-      svg.querySelectorAll('[data-number]').forEach(el => {
-        const num = el.dataset.number;
-        if (saved[num]) {
-          el.style.fill = saved[num];
-        }
-      });
-
-      // Evento de pintura
-      svg.addEventListener('pointerdown', evt => {
-        const el = evt.target;
-        if (!el.dataset.number) return;
-        const num = el.dataset.number;
-        const color = freeColorInput.value
-          || el.dataset.color;
-        el.style.fill = color;
-        saved[num] = color;
-        localStorage.setItem(sceneId, JSON.stringify(saved));
-        audio.currentTime = 0;
-        audio.play();
-      });
-
-      initZoomPan(document.getElementById('canvas-container'));
-    }
-
-    // Botões de UI
-    document.getElementById('btn-back')
-      .addEventListener('click', () => {
-        document.getElementById('editor').classList.add('hidden');
-        document.getElementById('gallery').classList.remove('hidden');
-      });
-
-    document.getElementById('toggle-dark')
-      .addEventListener('click', () => {
-        document.body.classList.toggle('dark');
-      });
-
-    document.getElementById('export-btn')
-      .addEventListener('click', () => {
-        const svg = document.querySelector('#canvas-container svg');
-        const xml = new XMLSerializer().serializeToString(svg);
-        const svg64 = btoa(xml);
-        const img = new Image();
-        img.src = 'data:image/svg+xml;base64,' + svg64;
-        img.onload = () => {
-          const c = document.createElement('canvas');
-          c.width = img.width; c.height = img.height;
-          c.getContext('2d').drawImage(img, 0, 0);
-          c.toBlob(blob => {
-            const link = document.createElement('a');
-            link.download = 'coloured.png';
-            link.href = URL.createObjectURL(blob);
-            link.click();
-          });
-        };
-      });
-
-    document.getElementById('share-btn')
-      .addEventListener('click', async () => {
-        if (navigator.canShare) {
-          const exportBtn = document.getElementById('export-btn');
-          exportBtn.click();
-          // aguardar o blob ser gerado manualmente se quiser mais controle
-        } else {
-          alert('Compartilhamento não suportado neste dispositivo');
-        }
-      });
-
-    window.addEventListener('DOMContentLoaded', initGallery);
+    toggleDark.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+    });
   </script>
 </body>
 </html>
